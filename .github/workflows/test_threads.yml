@@ -1,0 +1,31 @@
+name: Test Threads Post
+
+on:
+  workflow_dispatch:
+    inputs:
+      text:
+        description: "Text to post to Threads"
+        required: false
+        default: "Threads API 自動投稿テストです。"
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Publish test post
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          THREADS_POST_TEXT: ${{ inputs.text }}
+        run: python post_threads.py
