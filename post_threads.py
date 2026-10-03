@@ -28,26 +28,21 @@ def post_form(url, data):
 
 
 def main():
-    create = post_form(
+    # Threads API supports auto-publishing text posts at container creation time.
+    # This avoids a race where an immediately published container may not yet be ready.
+    published = post_form(
         f"{GRAPH_BASE}/{USER_ID}/threads",
         {
             "media_type": "TEXT",
             "text": POST_TEXT,
+            "auto_publish_text": "true",
             "access_token": ACCESS_TOKEN,
         },
     )
 
-    creation_id = create.get("id")
-    if not creation_id:
-        raise RuntimeError(f"Creation ID was not returned: {create}")
-
-    published = post_form(
-        f"{GRAPH_BASE}/{USER_ID}/threads_publish",
-        {
-            "creation_id": creation_id,
-            "access_token": ACCESS_TOKEN,
-        },
-    )
+    post_id = published.get("id")
+    if not post_id:
+        raise RuntimeError(f"Post ID was not returned: {published}")
 
     print("Published successfully:", json.dumps(published, ensure_ascii=False))
 
