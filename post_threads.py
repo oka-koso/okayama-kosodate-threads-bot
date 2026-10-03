@@ -1,0 +1,56 @@
+import json
+import os
+import sys
+import urllib.parse
+import urllib.request
+import urllib.error
+
+GRAPH_BASE = "https://graph.threads.net/v1.0"
+ACCESS_TOKEN = os.environ["THREADS_ACCESS_TOKEN"]
+USER_ID = os.environ["THREADS_USER_ID"]
+
+POST_TEXT = os.environ.get(
+    "THREADS_POST_TEXT",
+    "Threads API 自動投稿テストです。"
+)
+
+
+def post_form(url, data):
+    body = urllib.parse.urlencode(data).encode("utf-8")
+    req = urllib.request.Request(url, data=body, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as res:
+            return json.loads(res.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")
+        print(f"HTTP {e.code}: {detail}", file=sys.stderr)
+        raise
+
+
+def main():
+    create = post_form(
+        f"{GRAPH_BASE}/{USER_ID}/threads",
+        {
+            "media_type": "TEXT",
+            "text": POST_TEXT,
+            "access_token": ACCESS_TOKEN,
+        },
+    )
+
+    creation_id = create.get("id")
+    if not creation_id:
+        raise RuntimeError(f"Creation ID was not returned: {create}")
+
+    published = post_form(
+        f"{GRAPH_BASE}/{USER_ID}/threads_publish",
+        {
+            "creation_id": creation_id,
+            "access_token": ACCESS_TOKEN,
+        },
+    )
+
+    print("Published successfully:", json.dumps(published, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()
