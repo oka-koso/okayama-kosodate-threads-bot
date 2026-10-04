@@ -1,11 +1,13 @@
 {
   "posted_slots": [
     "2026-10-04T07:45",
-    "2026-10-04T11:45"
+    "2026-10-04T11:45",
+    "2026-10-04T14:30"
   ],
   "recent_daily_hashes": [
     "d04af80574643c7d",
-    "f4e0cd1814e7c55f"
+    "f4e0cd1814e7c55f",
+    "e36e8c2d1485c01a"
   ],
   "history": [
     {
@@ -23,6 +25,14 @@
       "kind": "daily",
       "post_id": "17870330436644102",
       "text_hash": "f4e0cd1814e7c55f"
+    },
+    {
+      "date": "2026-10-04",
+      "planned_time": "14:30",
+      "posted_at": "2026-10-04T14:38:25+09:00",
+      "kind": "daily",
+      "post_id": "18079488623369471",
+      "text_hash": "e36e8c2d1485c01a"
     }
   ]
 }
