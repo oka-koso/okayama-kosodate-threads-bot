@@ -18,12 +18,11 @@ USER_ID = os.environ["THREADS_USER_ID"]
 STATE_PATH = Path("state.json")
 JST = timezone(timedelta(hours=9))
 
-# GitHub Actions runs at these irregular minutes. Daily posting slots are selected
-# deterministically from them, so reruns do not create a new schedule.
-MINUTES = (7, 23, 41, 56)
 START_HOUR = 7
 END_HOUR = 22
-MIN_GAP_MINUTES = 90
+SLOT_MINUTES = (0, 15, 30, 45)
+PLANNED_MIN_GAP_MINUTES = 105
+ACTUAL_MIN_GAP_MINUTES = 75
 RECENT_DAILY_LIMIT = 24
 STATE_KEEP_DAYS = 60
 
@@ -34,19 +33,19 @@ def seeded_rng(seed_text: str) -> random.Random:
 
 
 def daily_schedule(day):
-    rng = seeded_rng(f"schedule-v2|{day.isoformat()}")
+    rng = seeded_rng(f"schedule-v3|{day.isoformat()}")
     count = rng.randint(3, 5)
     candidates = [
         (h, m)
         for h in range(START_HOUR, END_HOUR + 1)
-        for m in MINUTES
+        for m in SLOT_MINUTES
     ]
     rng.shuffle(candidates)
 
     chosen = []
     for h, m in candidates:
         minute_of_day = h * 60 + m
-        if all(abs(minute_of_day - (ch * 60 + cm)) >= MIN_GAP_MINUTES for ch, cm in chosen):
+        if all(abs(minute_of_day - (ch * 60 + cm)) >= PLANNED_MIN_GAP_MINUTES for ch, cm in chosen):
             chosen.append((h, m))
             if len(chosen) == count:
                 break
@@ -57,27 +56,22 @@ def daily_schedule(day):
 
 def promo_plan_for_week(day):
     iso = day.isocalendar()
-    rng = seeded_rng(f"promo-v2|{iso.year}-W{iso.week:02d}")
+    rng = seeded_rng(f"promo-v3|{iso.year}-W{iso.week:02d}")
 
-    # Exactly two possible promo slots per week, always on separate, well-spaced days.
     day_pairs = [(0, 3), (1, 4), (2, 5), (3, 6), (0, 4), (1, 5), (2, 6)]
     d1, d2 = rng.choice(day_pairs)
 
     result = {}
     monday = day - timedelta(days=day.weekday())
+    affiliate_index = rng.randint(0, 1) if AFFILIATE_PROMOS else -1
+
     for i, weekday in enumerate((d1, d2)):
         target_day = monday + timedelta(days=weekday)
         slots = daily_schedule(target_day)
         slot = rng.choice(slots)
-        # Mix site and affiliate, while keeping the combined cap at two/week.
-        kind = "affiliate" if i == rng.randint(0, 1) and AFFILIATE_PROMOS else "site"
+        kind = "affiliate" if i == affiliate_index else "site"
         result[(target_day.isoformat(), slot[0], slot[1])] = kind
 
-    # Make sure at least one normal site introduction is present if both became affiliate.
-    kinds = list(result.values())
-    if kinds.count("affiliate") == 2:
-        first = next(iter(result))
-        result[first] = "site"
     return result
 
 
@@ -96,19 +90,19 @@ def load_state():
 
 def prune_state(state, today):
     cutoff = today - timedelta(days=STATE_KEEP_DAYS)
-    keep_prefixes = set()
+    keep_dates = set()
     d = cutoff
     while d <= today:
-        keep_prefixes.add(d.isoformat())
+        keep_dates.add(d.isoformat())
         d += timedelta(days=1)
 
     state["posted_slots"] = [
         s for s in state["posted_slots"]
-        if s.split("T", 1)[0] in keep_prefixes
+        if s.split("T", 1)[0] in keep_dates
     ]
     state["history"] = [
         h for h in state["history"]
-        if h.get("date") in keep_prefixes
+        if h.get("date") in keep_dates
     ][-250:]
     state["recent_daily_hashes"] = state["recent_daily_hashes"][-RECENT_DAILY_LIMIT:]
 
@@ -151,57 +145,92 @@ def pick_daily_post(state, day, hour, minute):
         candidates = DAILY_POSTS[:]
         state["recent_daily_hashes"] = []
 
-    rng = seeded_rng(f"daily-text-v2|{day.isoformat()}|{hour:02d}:{minute:02d}")
+    rng = seeded_rng(f"daily-text-v3|{day.isoformat()}|{hour:02d}:{minute:02d}")
     return rng.choice(candidates)
 
 
 def pick_promo(kind, day, hour, minute):
     bank = AFFILIATE_PROMOS if kind == "affiliate" else SITE_PROMOS
-    rng = seeded_rng(f"promo-text-v2|{kind}|{day.isoformat()}|{hour:02d}:{minute:02d}")
+    rng = seeded_rng(f"promo-text-v3|{kind}|{day.isoformat()}|{hour:02d}:{minute:02d}")
     return rng.choice(bank)
+
+
+def last_actual_post_time(state):
+    for item in reversed(state["history"]):
+        ts = item.get("posted_at")
+        if not ts:
+            continue
+        try:
+            return datetime.fromisoformat(ts)
+        except ValueError:
+            continue
+    return None
+
+
+def next_due_slot(now, state):
+    schedule = daily_schedule(now.date())
+    posted = set(state["posted_slots"])
+    due = []
+
+    for h, m in schedule:
+        planned = datetime(now.year, now.month, now.day, h, m, tzinfo=JST)
+        key = f"{now.date().isoformat()}T{h:02d}:{m:02d}"
+        if planned <= now and key not in posted:
+            due.append((planned, h, m, key))
+
+    if not due:
+        return None
+
+    last_post = last_actual_post_time(state)
+    if last_post is not None and now - last_post < timedelta(minutes=ACTUAL_MIN_GAP_MINUTES):
+        wait = timedelta(minutes=ACTUAL_MIN_GAP_MINUTES) - (now - last_post)
+        print(f"Due post exists, but actual gap is too short. Retry in about {int(wait.total_seconds() // 60) + 1} min.")
+        return None
+
+    # Oldest due slot first. If GitHub Actions was delayed, the bot catches up
+    # gradually rather than dropping the day's first post or publishing a burst.
+    return due[0]
 
 
 def main():
     now = datetime.now(JST)
     day = now.date()
-    slot = (now.hour, now.minute)
     schedule = daily_schedule(day)
 
     print("JST now:", now.isoformat(timespec="minutes"))
-    print("Today's schedule:", ", ".join(f"{h:02d}:{m:02d}" for h, m in schedule))
-
-    if slot not in schedule:
-        print("Not a posting slot. Nothing to do.")
-        return
+    print("Today's planned slots:", ", ".join(f"{h:02d}:{m:02d}" for h, m in schedule))
 
     state = load_state()
     prune_state(state, day)
 
-    slot_key = f"{day.isoformat()}T{now.hour:02d}:{now.minute:02d}"
-    if slot_key in state["posted_slots"]:
-        print("This slot was already posted. Skipping duplicate.")
+    due = next_due_slot(now, state)
+    if due is None:
+        print("No post is due right now.")
         return
 
+    planned, hour, minute, slot_key = due
+    print(f"Posting due slot {hour:02d}:{minute:02d} (runner time {now.strftime('%H:%M')}).")
+
     promo_plan = promo_plan_for_week(day)
-    kind = promo_plan.get((day.isoformat(), now.hour, now.minute), "daily")
+    kind = promo_plan.get((day.isoformat(), hour, minute), "daily")
 
     if kind == "daily":
-        text = pick_daily_post(state, day, now.hour, now.minute)
+        text = pick_daily_post(state, day, hour, minute)
     else:
-        text = pick_promo(kind, day, now.hour, now.minute)
+        text = pick_promo(kind, day, hour, minute)
 
     post_id = publish(text)
     print(f"Published {kind} post: {post_id}")
 
     state["posted_slots"].append(slot_key)
     if kind == "daily":
-        h = text_hash(text)
-        state["recent_daily_hashes"].append(h)
+        state["recent_daily_hashes"].append(text_hash(text))
         state["recent_daily_hashes"] = state["recent_daily_hashes"][-RECENT_DAILY_LIMIT:]
 
     state["history"].append({
         "date": day.isoformat(),
-        "time": f"{now.hour:02d}:{now.minute:02d}",
+        "planned_time": f"{hour:02d}:{minute:02d}",
+        "posted_at": now.isoformat(timespec="seconds"),
         "kind": kind,
         "post_id": post_id,
         "text_hash": text_hash(text),
