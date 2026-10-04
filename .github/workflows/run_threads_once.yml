@@ -1,0 +1,42 @@
+name: Run Threads Post Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/run_threads_once.yml"
+
+concurrency:
+  group: threads-auto-post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Publish oldest due Threads post
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+        run: python auto_post.py
+
+      - name: Save posting state
+        run: |
+          if git diff --quiet -- state.json; then
+            echo "No state change."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state.json
+          git commit -m "Update Threads posting state"
+          git push
