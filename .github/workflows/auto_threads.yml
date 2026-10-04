@@ -2,8 +2,9 @@ name: Auto Threads Posts
 
 on:
   schedule:
-    # JST 07:07-22:56. GitHub cron is UTC, so this covers UTC 22:00-13:59.
-    - cron: "7,23,41,56 22-23,0-13 * * *"
+    # Every 15 minutes. The Python script itself limits posting to JST 07:00-22:59
+    # and catches up safely when GitHub's scheduler starts late.
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 concurrency:
