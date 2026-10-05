@@ -33,8 +33,12 @@ def seeded_rng(seed_text: str) -> random.Random:
 
 
 def daily_schedule(day):
-    rng = seeded_rng(f"schedule-v3|{day.isoformat()}")
-    count = rng.randint(3, 5)
+    if day.isoformat() <= "2026-10-05":
+        rng = seeded_rng(f"schedule-v3|{day.isoformat()}")
+        count = rng.randint(3, 5)
+    else:
+        rng = seeded_rng(f"schedule-v4|{day.isoformat()}")
+        count = rng.randint(4, 7)
     candidates = [
         (h, m)
         for h in range(START_HOUR, END_HOUR + 1)
