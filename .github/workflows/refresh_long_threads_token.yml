@@ -1,0 +1,59 @@
+name: Refresh Long-Lived Threads Token
+
+on:
+  schedule:
+    # Twice a month at 01:07 JST (16:07 UTC), safely before the 60-day expiry.
+    - cron: "7 16 1,15 * *"
+  workflow_dispatch:
+
+concurrency:
+  group: threads-token-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Refresh long-lived token
+        env:
+          THREADS_APP_SECRET: ${{ secrets.THREADS_APP_SECRET }}
+        run: |
+          TOKEN="$(openssl enc -d -aes-256-cbc -pbkdf2 -a -A             -in threads_token.enc             -pass env:THREADS_APP_SECRET)"
+          echo "::add-mask::$TOKEN"
+
+          RESPONSE="$(curl --fail-with-body --silent --show-error --get             "https://graph.threads.net/refresh_access_token"             --data-urlencode "grant_type=th_refresh_token"             --data-urlencode "access_token=$TOKEN")"
+
+          NEW_TOKEN="$(python -c 'import json,sys; d=json.load(sys.stdin); print(d.get("access_token",""))' <<< "$RESPONSE")"
+          EXPIRES_IN="$(python -c 'import json,sys; d=json.load(sys.stdin); print(d.get("expires_in",""))' <<< "$RESPONSE")"
+
+          if [ -z "$NEW_TOKEN" ]; then
+            echo "Refreshed token was not returned."
+            exit 1
+          fi
+
+          echo "::add-mask::$NEW_TOKEN"
+          printf '%s' "$NEW_TOKEN" > /tmp/threads_long_token
+          openssl enc -aes-256-cbc -pbkdf2 -salt -a -A             -in /tmp/threads_long_token             -out threads_token.enc             -pass env:THREADS_APP_SECRET
+          rm -f /tmp/threads_long_token
+
+          echo "Long-lived Threads token refreshed successfully."
+          echo "expires_in=$EXPIRES_IN"
+
+      - name: Save refreshed encrypted token
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase
+          git add threads_token.enc
+          if git diff --cached --quiet; then
+            echo "Encrypted token did not change."
+            exit 0
+          fi
+          git commit -m "Refresh encrypted long-lived Threads token"
+          git push
