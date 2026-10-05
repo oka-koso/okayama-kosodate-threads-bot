@@ -2,8 +2,6 @@ name: Auto Threads Posts
 
 on:
   schedule:
-    # Every 15 minutes. The Python script itself limits posting to JST 07:00-22:59
-    # and catches up safely when GitHub's scheduler starts late.
     - cron: "*/15 * * * *"
   workflow_dispatch:
 
@@ -26,9 +24,21 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Load Threads token
+        env:
+          THREADS_APP_SECRET: ${{ secrets.THREADS_APP_SECRET }}
+          THREADS_FALLBACK_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+        run: |
+          if [ -f threads_token.enc ]; then
+            TOKEN="$(openssl enc -d -aes-256-cbc -pbkdf2 -a -A               -in threads_token.enc               -pass env:THREADS_APP_SECRET)"
+          else
+            TOKEN="$THREADS_FALLBACK_TOKEN"
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "THREADS_ACCESS_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
       - name: Run automatic Threads poster
         env:
-          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
           THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
         run: python auto_post.py
 
