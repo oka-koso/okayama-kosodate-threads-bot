@@ -21,28 +21,60 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Exchange short token for long-lived token
+      - name: Create or confirm long-lived token
         env:
           THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
           THREADS_APP_SECRET: ${{ secrets.THREADS_APP_SECRET }}
         run: |
-          RESPONSE="$(curl --fail-with-body --silent --show-error --get             "https://graph.threads.net/access_token"             --data-urlencode "grant_type=th_exchange_token"             --data-urlencode "client_secret=$THREADS_APP_SECRET"             --data-urlencode "access_token=$THREADS_ACCESS_TOKEN")"
+          set +e
 
-          LONG_TOKEN="$(python -c 'import json,sys; d=json.load(sys.stdin); print(d["access_token"])' <<< "$RESPONSE")"
-          EXPIRES_IN="$(python -c 'import json,sys; d=json.load(sys.stdin); print(d.get("expires_in",""))' <<< "$RESPONSE")"
+          EXCHANGE_RESPONSE="$(curl --silent --show-error --get             "https://graph.threads.net/access_token"             --data-urlencode "grant_type=th_exchange_token"             --data-urlencode "client_secret=$THREADS_APP_SECRET"             --data-urlencode "access_token=$THREADS_ACCESS_TOKEN"             --write-out $'\n%{http_code}')"
+          EXCHANGE_CODE="$(printf '%s' "$EXCHANGE_RESPONSE" | tail -n1)"
+          EXCHANGE_BODY="$(printf '%s' "$EXCHANGE_RESPONSE" | sed '$d')"
 
-          echo "::add-mask::$LONG_TOKEN"
+          LONG_TOKEN=""
+          EXPIRES_IN=""
+
+          if [ "$EXCHANGE_CODE" = "200" ]; then
+            LONG_TOKEN="$(python -c 'import json,sys; d=json.load(sys.stdin); print(d.get("access_token",""))' <<< "$EXCHANGE_BODY")"
+            EXPIRES_IN="$(python -c 'import json,sys; d=json.load(sys.stdin); print(d.get("expires_in",""))' <<< "$EXCHANGE_BODY")"
+            echo "Short-lived token exchanged successfully."
+          else
+            echo "Exchange endpoint returned HTTP $EXCHANGE_CODE; checking whether the current token is already long-lived."
+            python -c 'import json,sys; d=json.load(sys.stdin); e=d.get("error",{}); print("Exchange:", e.get("type",""), e.get("code",""), e.get("message",""))' <<< "$EXCHANGE_BODY" || true
+
+            REFRESH_RESPONSE="$(curl --silent --show-error --get               "https://graph.threads.net/refresh_access_token"               --data-urlencode "grant_type=th_refresh_token"               --data-urlencode "access_token=$THREADS_ACCESS_TOKEN"               --write-out $'\n%{http_code}')"
+            REFRESH_CODE="$(printf '%s' "$REFRESH_RESPONSE" | tail -n1)"
+            REFRESH_BODY="$(printf '%s' "$REFRESH_RESPONSE" | sed '$d')"
+
+            if [ "$REFRESH_CODE" = "200" ]; then
+              LONG_TOKEN="$(python -c 'import json,sys; s=sys.stdin.read().strip(); d=json.loads(s) if s else {}; print(d.get("access_token",""))' <<< "$REFRESH_BODY")"
+              EXPIRES_IN="$(python -c 'import json,sys; s=sys.stdin.read().strip(); d=json.loads(s) if s else {}; print(d.get("expires_in",""))' <<< "$REFRESH_BODY")"
+              if [ -z "$LONG_TOKEN" ]; then
+                LONG_TOKEN="$THREADS_ACCESS_TOKEN"
+              fi
+              echo "Current token is refreshable as a long-lived token."
+            else
+              echo "Refresh endpoint returned HTTP $REFRESH_CODE."
+              python -c 'import json,sys; d=json.load(sys.stdin); e=d.get("error",{}); print("Refresh:", e.get("type",""), e.get("code",""), e.get("message",""))' <<< "$REFRESH_BODY" || true
+              exit 1
+            fi
+          fi
+
           if [ -z "$LONG_TOKEN" ]; then
-            echo "Long-lived token was not returned."
+            echo "No usable long-lived token was returned."
             exit 1
           fi
 
+          echo "::add-mask::$LONG_TOKEN"
           printf '%s' "$LONG_TOKEN" > /tmp/threads_long_token
           openssl enc -aes-256-cbc -pbkdf2 -salt -a -A             -in /tmp/threads_long_token             -out threads_token.enc             -pass env:THREADS_APP_SECRET
           rm -f /tmp/threads_long_token
 
-          echo "Long-lived token created successfully."
-          echo "expires_in=$EXPIRES_IN"
+          echo "Long-lived token is ready and encrypted."
+          if [ -n "$EXPIRES_IN" ]; then
+            echo "expires_in=$EXPIRES_IN"
+          fi
 
       - name: Save encrypted long-lived token
         run: |
