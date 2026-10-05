@@ -1,0 +1,59 @@
+name: Post Label Article Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/post_label_article_once.yml"
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Load Threads token
+        env:
+          THREADS_APP_SECRET: ${{ secrets.THREADS_APP_SECRET }}
+          THREADS_FALLBACK_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+        run: |
+          if [ -f threads_token.enc ]; then
+            TOKEN="$(openssl enc -d -aes-256-cbc -pbkdf2 -a -A               -in threads_token.enc               -pass env:THREADS_APP_SECRET)"
+          else
+            TOKEN="$THREADS_FALLBACK_TOKEN"
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "THREADS_ACCESS_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Post article
+        env:
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.parse, urllib.request
+
+          text = """「これ全部に名前書くん？」って、
+          入園準備してると地味にしんどい😅
+
+          同じ名前を何回も書くのが大変で、
+          スマホで印刷できるラベルマシンを使ってみたらかなりラクでした。
+
+          手書きとの使い分けも含めて、実際に使ってよかったところをまとめてます✍️
+          https://oka-koso.github.io/okayama-kosodate-navi/articles/nyuen-name-label-maker.html
+
+          ※記事内に広告リンクを含みます""".replace("          ", "")
+
+          url = f"https://graph.threads.net/v1.0/{os.environ['THREADS_USER_ID']}/threads"
+          data = urllib.parse.urlencode({
+              "media_type": "TEXT",
+              "text": text,
+              "auto_publish_text": "true",
+              "access_token": os.environ["THREADS_ACCESS_TOKEN"],
+          }).encode()
+          req = urllib.request.Request(url, data=data, method="POST")
+          with urllib.request.urlopen(req, timeout=30) as res:
+              result = json.loads(res.read().decode())
+          print("Published:", result.get("id"))
+          PY
