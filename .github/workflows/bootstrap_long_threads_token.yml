@@ -1,0 +1,53 @@
+name: Bootstrap Long-Lived Threads Token
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/bootstrap_long_threads_token.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: threads-token-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  exchange:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Exchange short token for long-lived token
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_APP_SECRET: ${{ secrets.THREADS_APP_SECRET }}
+        run: |
+          RESPONSE="$(curl --fail-with-body --silent --show-error --get             "https://graph.threads.net/access_token"             --data-urlencode "grant_type=th_exchange_token"             --data-urlencode "client_secret=$THREADS_APP_SECRET"             --data-urlencode "access_token=$THREADS_ACCESS_TOKEN")"
+
+          LONG_TOKEN="$(python -c 'import json,sys; d=json.load(sys.stdin); print(d["access_token"])' <<< "$RESPONSE")"
+          EXPIRES_IN="$(python -c 'import json,sys; d=json.load(sys.stdin); print(d.get("expires_in",""))' <<< "$RESPONSE")"
+
+          echo "::add-mask::$LONG_TOKEN"
+          if [ -z "$LONG_TOKEN" ]; then
+            echo "Long-lived token was not returned."
+            exit 1
+          fi
+
+          printf '%s' "$LONG_TOKEN" > /tmp/threads_long_token
+          openssl enc -aes-256-cbc -pbkdf2 -salt -a -A             -in /tmp/threads_long_token             -out threads_token.enc             -pass env:THREADS_APP_SECRET
+          rm -f /tmp/threads_long_token
+
+          echo "Long-lived token created successfully."
+          echo "expires_in=$EXPIRES_IN"
+
+      - name: Save encrypted long-lived token
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add threads_token.enc
+          git commit -m "Store encrypted long-lived Threads token"
+          git push
