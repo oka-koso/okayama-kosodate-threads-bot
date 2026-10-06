@@ -23,7 +23,7 @@ END_HOUR = 22
 SLOT_MINUTES = (0, 15, 30, 45)
 PLANNED_MIN_GAP_MINUTES = 105
 ACTUAL_MIN_GAP_MINUTES = 75
-RECENT_DAILY_LIMIT = 24
+RECENT_DAILY_LIMIT = 200
 STATE_KEEP_DAYS = 60
 
 
@@ -142,21 +142,31 @@ def text_hash(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
+def used_hashes(state):
+    # Prevent exact repeats for as long as the retained history covers them.
+    hashes = {h.get("text_hash") for h in state.get("history", []) if h.get("text_hash")}
+    hashes.update(state.get("recent_daily_hashes", []))
+    return hashes
+
+
 def pick_daily_post(state, day, hour, minute):
-    recent = set(state["recent_daily_hashes"])
-    candidates = [p for p in DAILY_POSTS if text_hash(p) not in recent]
+    used = used_hashes(state)
+    candidates = [p for p in DAILY_POSTS if text_hash(p) not in used]
     if not candidates:
+        # Only recycle after every daily post in the bank has been used once.
         candidates = DAILY_POSTS[:]
         state["recent_daily_hashes"] = []
 
-    rng = seeded_rng(f"daily-text-v3|{day.isoformat()}|{hour:02d}:{minute:02d}")
+    rng = seeded_rng(f"daily-text-v4|{day.isoformat()}|{hour:02d}:{minute:02d}")
     return rng.choice(candidates)
 
 
-def pick_promo(kind, day, hour, minute):
+def pick_promo(kind, state, day, hour, minute):
     bank = AFFILIATE_PROMOS if kind == "affiliate" else SITE_PROMOS
-    rng = seeded_rng(f"promo-text-v3|{kind}|{day.isoformat()}|{hour:02d}:{minute:02d}")
-    return rng.choice(bank)
+    used = used_hashes(state)
+    candidates = [p for p in bank if text_hash(p) not in used] or bank
+    rng = seeded_rng(f"promo-text-v4|{kind}|{day.isoformat()}|{hour:02d}:{minute:02d}")
+    return rng.choice(candidates)
 
 
 def last_actual_post_time(state):
@@ -221,7 +231,7 @@ def main():
     if kind == "daily":
         text = pick_daily_post(state, day, hour, minute)
     else:
-        text = pick_promo(kind, day, hour, minute)
+        text = pick_promo(kind, state, day, hour, minute)
 
     post_id = publish(text)
     print(f"Published {kind} post: {post_id}")
@@ -239,7 +249,7 @@ def main():
         "post_id": post_id,
         "text_hash": text_hash(text),
     })
-    state["history"] = state["history"][-250:]
+    state["history"] = state["history"][-500:]
     STATE_PATH.write_text(
         json.dumps(state, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
