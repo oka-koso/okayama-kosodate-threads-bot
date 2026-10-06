@@ -136,6 +136,7 @@ def publish(text):
             "media_type": "TEXT",
             "text": text,
             "auto_publish_text": "true",
+            "topic_tag": "子育てママ",
             "access_token": ACCESS_TOKEN,
         },
     )
