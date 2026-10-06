@@ -81,15 +81,21 @@ def promo_plan_for_week(day):
 
 def load_state():
     if not STATE_PATH.exists():
-        return {"posted_slots": [], "recent_daily_hashes": [], "history": []}
+        return {"posted_slots": [], "recent_daily_hashes": [], "used_text_hashes": [], "history": []}
     try:
         data = json.loads(STATE_PATH.read_text(encoding="utf-8"))
         data.setdefault("posted_slots", [])
         data.setdefault("recent_daily_hashes", [])
         data.setdefault("history", [])
+        data.setdefault("used_text_hashes", [])
+        # One-time migration: permanently remember every text hash already present in history.
+        migrated = {h.get("text_hash") for h in data["history"] if h.get("text_hash")}
+        migrated.update(data.get("recent_daily_hashes", []))
+        migrated.update(data.get("used_text_hashes", []))
+        data["used_text_hashes"] = sorted(migrated)
         return data
     except Exception:
-        return {"posted_slots": [], "recent_daily_hashes": [], "history": []}
+        return {"posted_slots": [], "recent_daily_hashes": [], "used_text_hashes": [], "history": []}
 
 
 def prune_state(state, today):
@@ -143,29 +149,27 @@ def text_hash(text):
 
 
 def used_hashes(state):
-    # Prevent exact repeats for as long as the retained history covers them.
-    hashes = {h.get("text_hash") for h in state.get("history", []) if h.get("text_hash")}
-    hashes.update(state.get("recent_daily_hashes", []))
-    return hashes
+    # Permanent no-reuse policy: once a text hash is used, it stays blocked forever.
+    return set(state.get("used_text_hashes", []))
 
 
 def pick_daily_post(state, day, hour, minute):
     used = used_hashes(state)
     candidates = [p for p in DAILY_POSTS if text_hash(p) not in used]
     if not candidates:
-        # Only recycle after every daily post in the bank has been used once.
-        candidates = DAILY_POSTS[:]
-        state["recent_daily_hashes"] = []
+        return None
 
-    rng = seeded_rng(f"daily-text-v4|{day.isoformat()}|{hour:02d}:{minute:02d}")
+    rng = seeded_rng(f"daily-text-v5|{day.isoformat()}|{hour:02d}:{minute:02d}")
     return rng.choice(candidates)
 
 
 def pick_promo(kind, state, day, hour, minute):
     bank = AFFILIATE_PROMOS if kind == "affiliate" else SITE_PROMOS
     used = used_hashes(state)
-    candidates = [p for p in bank if text_hash(p) not in used] or bank
-    rng = seeded_rng(f"promo-text-v4|{kind}|{day.isoformat()}|{hour:02d}:{minute:02d}")
+    candidates = [p for p in bank if text_hash(p) not in used]
+    if not candidates:
+        return None
+    rng = seeded_rng(f"promo-text-v5|{kind}|{day.isoformat()}|{hour:02d}:{minute:02d}")
     return rng.choice(candidates)
 
 
@@ -233,12 +237,24 @@ def main():
     else:
         text = pick_promo(kind, state, day, hour, minute)
 
+    if text is None:
+        print(f"No unused {kind} text remains. Skipping this slot rather than reusing old copy.")
+        state["posted_slots"].append(slot_key)
+        STATE_PATH.write_text(
+            json.dumps(state, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return
+
     post_id = publish(text)
     print(f"Published {kind} post: {post_id}")
 
     state["posted_slots"].append(slot_key)
+    used = text_hash(text)
+    state["used_text_hashes"].append(used)
+    state["used_text_hashes"] = sorted(set(state["used_text_hashes"]))
     if kind == "daily":
-        state["recent_daily_hashes"].append(text_hash(text))
+        state["recent_daily_hashes"].append(used)
         state["recent_daily_hashes"] = state["recent_daily_hashes"][-RECENT_DAILY_LIMIT:]
 
     state["history"].append({
