@@ -122,3 +122,32 @@ AFFILIATE_PROMOS = [
     "入園準備の名前付け、量が多いとほんま大変。\nスマホで作れるラベルマシンってこういう時かなり便利そう。使い方とかまとめてます👇\n"
     + SITE_BASE + "articles/nyuen-name-label-maker.html\n※記事内に広告リンクを含みます",
 ]
+
+# 備忘録の記事へ自然に誘導する投稿。宣伝枠はサイト・アフィ合計週2本。
+SITE_PROMOS += [
+    "園見学って、行く前は何を聞けばいいか分からんのに、帰ってから聞き忘れに気づきがち。\n聞いておきたいことをチェックリストにしてみた。\n" + SITE_BASE + "articles/hoikuen-erabikata-part3.html",
+    "保育園選び、建物がきれいとか家から近いとか、それだけでは決められんよね。\n先生や子どもの様子を見るポイントを整理してみた。\n" + SITE_BASE + "articles/hoikuen-erabikata-part1.html",
+    "送迎って毎日のことやから、少しの遠回りも積み重なる。\n保育園を比べるときの生活面のポイント、書き出してみた。\n" + SITE_BASE + "articles/hoikuen-erabikata-part2.html",
+    "保育園を探そうと思っても、最初に何を決めればいいんやろ？\n希望月や送迎時間から考える順番をまとめてみた。\n" + SITE_BASE + "articles/hoikuen-sagashi-hajimekata.html",
+    "連絡帳、毎日何か特別なことを書かなきゃと思うと続かんよね。\n短い一言で書くときの例をいくつかまとめてみた。\n" + SITE_BASE + "articles/hoikuen-renrakucho-kakukoto-nai.html",
+    "慣らし保育って、何日くらいかかるんやろ。\n仕事復帰の予定もあるし、先に知っておきたいことを整理してみた。\n" + SITE_BASE + "articles/narashi-hoiku.html",
+    "入園準備、バッグや着替えだけじゃなく名前付けも結構な作業。\n買い物から記名まで、準備するものをまとめてみた。\n" + SITE_BASE + "articles/nyuen-junbi.html",
+    "保育園と幼稚園、なんとなく違いは分かるけど説明するのは難しい。\n対象年齢や利用条件を並べてみた。\n" + SITE_BASE + "articles/hoikuen-toha.html",
+    "幼稚園って何歳から？預かり保育はどういう仕組み？\n保育園との違いを一度整理してみた。\n" + SITE_BASE + "articles/youchien-toha.html",
+    "認定こども園の1号・2号・3号って、最初は数字だけ見ても分からん…。\n違いを読みやすく整理してみた。\n" + SITE_BASE + "articles/nintei-kodomoen-toha.html",
+    "年度途中の入園って、空いている園を見つけたらすぐ申し込めるわけでもないんよね。\n岡山市の締切や手続きをまとめてみた。\n" + SITE_BASE + "articles/okayama-midyear-admission.html",
+    "引っ越しやきょうだい別園のとき、途中で転園できるか気になる。\n岡山市の扱いを整理してみた。\n" + SITE_BASE + "articles/okayama-midyear-transfer.html",
+    "入園申込み、書類をそろえる段階で『これも必要なん？』ってなることあるよね。\n岡山市の2027年度向けの確認ポイントをまとめてみた。\n" + SITE_BASE + "articles/okayama-hoikuen-2027-documents.html",
+    "4月入園を考えるなら、園探しと同じくらい日程の把握も大事。\n岡山市の2027年度の予定を見返しやすくまとめてみた。\n" + SITE_BASE + "articles/okayama-hoikuen-2027-schedule.html",
+    "『待機児童ゼロ』って聞くと、どの園にも入れるような気がするけど、実際はそう単純じゃない。\n岡山市の保活で見ておきたい数字を整理してみた。\n" + SITE_BASE + "articles/okayama-hoikuen-hokatsu-2026.html",
+    "持ち物の名前付け、手書きが早いものとシールが便利なものがあるよね。\n使い分けのメモを記事にしてみた。\n" + SITE_BASE + "articles/nyuen-name-label-maker.html",
+    "鼻風邪のときに使う鼻吸い器、口で吸うタイプと電動タイプって使い勝手がかなり違う。\n実際に使っているものの感想をまとめてみた。\n" + SITE_BASE + "articles/shupot-review.html",
+]
+
+# 広告リンクを含む記事の紹介。投稿本文にも広告を明示。
+AFFILIATE_PROMOS += [
+    "鼻風邪のとき、鼻水を拭くだけじゃ追いつかないことも。\n口で吸うタイプから電動のSHUPOTに替えた理由や、お手入れのことを記事にしてみた。\n" + SITE_BASE + "articles/shupot-review.html\n※記事内に広告リンクを含みます",
+    "鼻吸い器って『ちゃんと吸える？』も気になるけど、片づけるときの洗いやすさも大事。\n使っているSHUPOTの感想を残してみた。\n" + SITE_BASE + "articles/shupot-review.html\n※記事内に広告リンクを含みます",
+    "入園準備で名前をつけるもの、数えてみると意外と多い。\nスマホで作れるラベルマシンを使った感想をまとめてみた。\n" + SITE_BASE + "articles/nyuen-name-label-maker.html\n※記事内に広告リンクを含みます",
+    "名前シールって全部に使えばいいわけでもないんよね。\n手書きとの使い分けや、ラベルマシンを使ってみた感想を記事にしてみた。\n" + SITE_BASE + "articles/nyuen-name-label-maker.html\n※記事内に広告リンクを含みます",
+]
