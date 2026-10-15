@@ -49,11 +49,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git pull --rebase
           git add threads_token.enc
           if git diff --cached --quiet; then
             echo "Encrypted token did not change."
             exit 0
           fi
           git commit -m "Refresh encrypted long-lived Threads token"
-          git push
+          # Rebase only after committing: git pull --rebase rejects dirty worktrees.
+          git pull --rebase origin main
+          git push origin HEAD:main
