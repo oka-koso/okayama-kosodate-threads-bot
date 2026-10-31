@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from content_stock_300 import EXTRA_DAILY_POSTS
+from content_stock_100_nov import NEW_DAILY_POSTS
 
 SITE_BASE = "https://oka-koso.github.io/okayama-kosodate-navi/"
 
@@ -109,6 +110,7 @@ DAILY_POSTS += [
 ]
 
 DAILY_POSTS += EXTRA_DAILY_POSTS
+DAILY_POSTS += NEW_DAILY_POSTS
 
 SITE_PROMOS = [
     "岡山市の保育園、候補が多いと場所見るだけでも大変。\n地図から探せるようにまとめてます👇\n" + SITE_BASE,
