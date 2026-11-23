@@ -180,7 +180,8 @@
     "2026-11-21T11:45",
     "2026-11-21T18:00",
     "2026-11-22T08:00",
-    "2026-11-22T13:15"
+    "2026-11-22T13:15",
+    "2026-11-23T08:00"
   ],
   "recent_daily_hashes": [
     "d04af80574643c7d",
@@ -354,7 +355,8 @@
     "43f8fb2a8680e079",
     "70976c66ba7e3ada",
     "0b9194ee50a34fb3",
-    "e6d28a40accb6e1e"
+    "e6d28a40accb6e1e",
+    "f9bef3ed4f1eafd7"
   ],
   "history": [
     {
@@ -1804,6 +1806,14 @@
       "kind": "site",
       "post_id": "17934458517161483",
       "text_hash": "fc9a369f71f3413f"
+    },
+    {
+      "date": "2026-11-23",
+      "planned_time": "08:00",
+      "posted_at": "2026-11-23T11:35:10+09:00",
+      "kind": "daily",
+      "post_id": "18119608976332257",
+      "text_hash": "f9bef3ed4f1eafd7"
     }
   ],
   "used_text_hashes": [
@@ -1986,6 +1996,7 @@
     "f8b002f28b815703",
     "f8d5e31d42ac3550",
     "f961b13b774cdfc7",
+    "f9bef3ed4f1eafd7",
     "fc9a369f71f3413f",
     "fd9d4759cbecb79a"
   ]
